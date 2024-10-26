@@ -96,8 +96,8 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
 
         used_values.append((
             time.strftime('%H:%M:%S'), degree,
-            f"{'>' if to_outlier else '<'}{abs(slope_to):.4f}" if slope_to is not None else "-",
-            f"{'>' if from_outlier else '<'}{abs(slope_from):.4f}" if slope_from is not None else "-",
+            f"{slope_to:+.4f}" if slope_to is not None else "-",  # Display slope with sign
+            f"{slope_from:+.4f}" if slope_from is not None else "-",  # Display slope with sign
             '✘' if is_outlier else '✔'
         ))
 
