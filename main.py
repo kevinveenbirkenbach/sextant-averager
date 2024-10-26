@@ -4,8 +4,15 @@ from datetime import datetime
 from statistics import mean, stdev
 from tabulate import tabulate
 
-# Standard slope threshold in °/s based on the Moon's apparent speed
-DEFAULT_IGNORE_SLOPE = "<0.00014"
+# DEFAULT_IGNORE_SLOPE sets a conservative threshold to filter out
+# unrealistically high altitude rate changes (°/s) due to measurement
+# noise or error. The value ">0.005" was chosen based on the maximum
+# apparent rate of altitude change caused by Earth's rotation (~0.0042°/s),
+# plus allowances for atmospheric refraction, parallax (especially for the Moon),
+# and observer height. This threshold ensures realistic rates for natural objects
+# like the Sun, Moon, planets, and stars are retained, while filtering
+# spurious values.
+DEFAULT_IGNORE_SLOPE = ">0.005"
 
 # Parse function with conversion to decimal degrees
 def parse_measurement(value):
@@ -113,7 +120,7 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
     accepted_degrees = [v[1] for v in used_values if v[4] == '✔']
     adjusted_mean = mean(accepted_degrees) if accepted_degrees else None
     mean_accepted_slopes = mean(accepted_slopes) if accepted_slopes else None
-    return adjusted_mean, mean_accepted_slopes, used_values
+    return adjusted_mean, mean_accepted_slopes, used_values, f"{ignore_operator}{ignore_threshold}"
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
@@ -131,7 +138,7 @@ def main():
     )
     args = parser.parse_args()
 
-    mean_value, mean_slope_value, results = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
+    mean_value, mean_slope_value, results, ignore_slope_used = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
 
     # Display results in console
     headers = ["Time", "Degrees", "Slope To (°/s)", "Slope From (°/s)", "Used"]
@@ -141,6 +148,7 @@ def main():
     ]
     print(tabulate(formatted_results, headers=headers))
     
+    # Output mean of accepted degrees and slopes
     if mean_value is not None:
         print(f"\nMean of accepted values: {mean_value:.4f}°")
     else:
@@ -150,6 +158,9 @@ def main():
         print(f"Mean of accepted slopes: {mean_slope_value:.4f}°/s")
     else:
         print("No slopes accepted for mean calculation.")
+
+    # Output the used ignore slope threshold
+    print(f"Ignore slope threshold used: {ignore_slope_used}°/s")
 
 if __name__ == "__main__":
     main()
