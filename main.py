@@ -19,8 +19,20 @@ def parse_measurement(value):
     except Exception:
         raise argparse.ArgumentTypeError(f"Invalid format: '{value}'. Expected format is HH:MM:SS@00°00.0'")
 
+# Parse and separate the operator and value from ignore_slope
+def parse_ignore_slope(value):
+    if value.startswith(('>', '<')):
+        operator = value[0]
+        try:
+            threshold = float(value[1:])
+            return operator, threshold
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid threshold format in '{value}'. Expected format is '<0.001' or '>0.001'")
+    else:
+        raise argparse.ArgumentTypeError(f"Invalid operator in '{value}'. Expected format is '<value' or '>value'.")
+
 # Function to calculate mean excluding outliers based on slope changes
-def calculate_slope_filtered_mean(values):
+def calculate_slope_filtered_mean(values, ignore_slope=None):
     # Sort measurements by time
     values.sort(key=lambda x: x[0])
 
@@ -52,15 +64,35 @@ def calculate_slope_filtered_mean(values):
     stddev_slope = stdev(all_slopes)
     slope_threshold = 2 * stddev_slope  # Define threshold for outliers
 
-    # Identify outliers based on slope deviation
+    # Unpack ignore_slope operator and threshold
+    ignore_operator, ignore_threshold = ignore_slope if ignore_slope else (None, None)
+
+    # Identify outliers based on slope deviation and ignore parameter
     used_values = []
     for i, (time, degree) in enumerate(values):
         slope_to = slopes_to[i]
         slope_from = slopes_from[i]
-        is_outlier = (slope_to is not None and abs(slope_to - mean_slope) > slope_threshold) or \
-                     (slope_from is not None and abs(slope_from - mean_slope) > slope_threshold)
 
-        used_values.append((time.strftime('%H:%M:%S'), degree, slope_to, slope_from, '✘' if is_outlier else '✔'))
+        # Determine if slope_to and slope_from are outliers based on the operator and threshold
+        to_outlier = (
+            slope_to is not None and abs(slope_to - mean_slope) > slope_threshold or
+            (ignore_operator == '>' and slope_to is not None and abs(slope_to) > ignore_threshold) or
+            (ignore_operator == '<' and slope_to is not None and abs(slope_to) < ignore_threshold)
+        )
+        from_outlier = (
+            slope_from is not None and abs(slope_from - mean_slope) > slope_threshold or
+            (ignore_operator == '>' and slope_from is not None and abs(slope_from) > ignore_threshold) or
+            (ignore_operator == '<' and slope_from is not None and abs(slope_from) < ignore_threshold)
+        )
+
+        is_outlier = to_outlier or from_outlier
+
+        used_values.append((
+            time.strftime('%H:%M:%S'), degree,
+            f"{'>' if to_outlier else '<'}{abs(slope_to):.4f}" if slope_to is not None else "-",
+            f"{'>' if from_outlier else '<'}{abs(slope_from):.4f}" if slope_from is not None else "-",
+            '✘' if is_outlier else '✔'
+        ))
 
     # Filter degrees of accepted values
     accepted_degrees = [v[1] for v in used_values if v[4] == '✔']
@@ -70,15 +102,15 @@ def calculate_slope_filtered_mean(values):
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
     parser.add_argument('measurements', type=parse_measurement, nargs='+', help="List of measurements in HH:MM:SS@00°00.0' format")
+    parser.add_argument('--ignore-slope', type=parse_ignore_slope, help="Threshold with operator in format '<value' or '>value' for ignoring slope values.")
     args = parser.parse_args()
 
-    mean_value, results = calculate_slope_filtered_mean(args.measurements)
+    mean_value, results = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
 
     # Display results in console
     headers = ["Time", "Degrees", "Slope To (°/s)", "Slope From (°/s)", "Used"]
     formatted_results = [
-        (time, f"{degree:.4f}", f"{slope_to:.4f}" if slope_to is not None else "-", 
-         f"{slope_from:.4f}" if slope_from is not None else "-", used)
+        (time, f"{degree:.4f}", slope_to, slope_from, used)
         for time, degree, slope_to, slope_from, used in results
     ]
     print(tabulate(formatted_results, headers=headers))
