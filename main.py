@@ -15,6 +15,8 @@ class Measurement:
         self.degrees = degrees
         self.slope_to = slope_to
         self.slope_from = slope_from
+        self.previous = None  # Pointer to the previous Measurement
+        self.next = None      # Pointer to the next Measurement
         self.slope_ok = False
         self.tolerance_ok = False
 
@@ -24,16 +26,15 @@ class Measurement:
 
     def check_slope_ok(self, mean_slope, slope_threshold, ignore_operator, ignore_threshold):
         to_within_threshold = (self.slope_to is not None and abs(self.slope_to - mean_slope) <= slope_threshold) and \
-                            ((ignore_operator == '>' and abs(self.slope_to) <= ignore_threshold) or \
-                            (ignore_operator == '<' and abs(self.slope_to) >= ignore_threshold))
+                              ((ignore_operator == '>' and abs(self.slope_to) <= ignore_threshold) or \
+                               (ignore_operator == '<' and abs(self.slope_to) >= ignore_threshold))
 
         from_within_threshold = (self.slope_from is not None and abs(self.slope_from - mean_slope) <= slope_threshold) and \
                                 ((ignore_operator == '>' and abs(self.slope_from) <= ignore_threshold) or \
-                                (ignore_operator == '<' and abs(self.slope_from) >= ignore_threshold))
+                                 (ignore_operator == '<' and abs(self.slope_from) >= ignore_threshold))
 
         # Slope OK if at least one of the slopes (To or From) is within threshold
         self.slope_ok = to_within_threshold or from_within_threshold
-
 
     def check_tolerance_ok(self, mean_slope_ok, tolerance_threshold):
         if self.slope_ok:
@@ -63,6 +64,13 @@ def parse_ignore_slope(value):
             raise argparse.ArgumentTypeError(f"Invalid threshold format in '{value}'. Expected format is '<0.001' or '>0.001'")
     else:
         raise argparse.ArgumentTypeError(f"Invalid operator in '{value}'. Expected format is '<value' or '>value'.")
+
+
+def link_measurements(measurements):
+    """Link each measurement to its previous and next measurement."""
+    for i in range(1, len(measurements)):
+        measurements[i].previous = measurements[i - 1]
+        measurements[i - 1].next = measurements[i]
 
 
 def calculate_slopes(measurements):
@@ -102,6 +110,7 @@ def main():
     args = parser.parse_args()
 
     measurements = args.measurements
+    link_measurements(measurements)  # Link each measurement to its previous and next one
     calculate_slopes(measurements)
 
     mean_slope_ok, tolerance_threshold = calculate_mean_slope_ok(measurements, args.ignore_slope, args.tolerance)
