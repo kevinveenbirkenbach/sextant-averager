@@ -4,15 +4,18 @@ from datetime import datetime
 from statistics import mean, stdev
 from tabulate import tabulate
 
-# Function to check format HH:MM:SS@00°00.0'
+# Function to check format HH:MM:SS@00°00.0' and convert to decimal degrees
 def parse_measurement(value):
     try:
         time_part, degree_part = value.split('@')
         datetime.strptime(time_part, '%H:%M:%S')
-        degree_pattern = r"^\d{2}°\d{2}\.\d'$"
-        if not re.match(degree_pattern, degree_part):
-            raise ValueError
-        return time_part, float(degree_part[:-1].replace("°", ""))
+        
+        # Extract degrees and minutes
+        degrees, minutes = map(float, degree_part[:-1].split('°'))
+        
+        # Convert to decimal degrees
+        decimal_degrees = degrees + (minutes / 60)
+        return time_part, decimal_degrees
     except Exception:
         raise argparse.ArgumentTypeError(f"Invalid format: '{value}'. Expected format is HH:MM:SS@00°00.0'")
 
