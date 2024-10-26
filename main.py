@@ -4,6 +4,9 @@ from datetime import datetime
 from statistics import mean, stdev
 from tabulate import tabulate
 
+# Standard slope threshold in °/s based on the Moon's apparent speed
+DEFAULT_IGNORE_SLOPE = "<0.00014"
+
 # Parse function with conversion to decimal degrees
 def parse_measurement(value):
     try:
@@ -65,7 +68,7 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
     slope_threshold = 2 * stddev_slope  # Define threshold for outliers
 
     # Unpack ignore_slope operator and threshold
-    ignore_operator, ignore_threshold = ignore_slope if ignore_slope else (None, None)
+    ignore_operator, ignore_threshold = ignore_slope if ignore_slope else parse_ignore_slope(DEFAULT_IGNORE_SLOPE)
 
     # Identify outliers based on slope deviation and ignore parameter
     used_values = []
@@ -114,8 +117,18 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
-    parser.add_argument('measurements', type=parse_measurement, nargs='+', help="List of measurements in HH:MM:SS@00°00.0' format")
-    parser.add_argument('--ignore-slope', type=parse_ignore_slope, help="Threshold with operator in format '<value' or '>value' for ignoring slope values.")
+    parser.add_argument(
+        'measurements', 
+        type=parse_measurement, 
+        nargs='+', 
+        help="List of measurements in HH:MM:SS@00°00.0' format"
+    )
+    parser.add_argument(
+        '--ignore-slope', 
+        type=parse_ignore_slope, 
+        default=DEFAULT_IGNORE_SLOPE, 
+        help=f"Threshold with operator in format '<value' or '>value' for ignoring slope values. Default is {DEFAULT_IGNORE_SLOPE}."
+    )
     args = parser.parse_args()
 
     mean_value, mean_slope_value, results = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
