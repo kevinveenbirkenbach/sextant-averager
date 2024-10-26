@@ -69,6 +69,7 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
 
     # Identify outliers based on slope deviation and ignore parameter
     used_values = []
+    accepted_slopes = []
     for i, (time, degree) in enumerate(values):
         slope_to = slopes_to[i]
         slope_from = slopes_from[i]
@@ -87,6 +88,12 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
 
         is_outlier = to_outlier or from_outlier
 
+        # Add accepted slopes for mean calculation
+        if not to_outlier and slope_to is not None:
+            accepted_slopes.append(slope_to)
+        if not from_outlier and slope_from is not None:
+            accepted_slopes.append(slope_from)
+
         used_values.append((
             time.strftime('%H:%M:%S'), degree,
             f"{'>' if to_outlier else '<'}{abs(slope_to):.4f}" if slope_to is not None else "-",
@@ -94,10 +101,11 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
             '✘' if is_outlier else '✔'
         ))
 
-    # Filter degrees of accepted values
+    # Filter degrees of accepted values and calculate mean of accepted slopes
     accepted_degrees = [v[1] for v in used_values if v[4] == '✔']
     adjusted_mean = mean(accepted_degrees) if accepted_degrees else None
-    return adjusted_mean, used_values
+    mean_accepted_slopes = mean(accepted_slopes) if accepted_slopes else None
+    return adjusted_mean, mean_accepted_slopes, used_values
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
@@ -105,7 +113,7 @@ def main():
     parser.add_argument('--ignore-slope', type=parse_ignore_slope, help="Threshold with operator in format '<value' or '>value' for ignoring slope values.")
     args = parser.parse_args()
 
-    mean_value, results = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
+    mean_value, mean_slope_value, results = calculate_slope_filtered_mean(args.measurements, args.ignore_slope)
 
     # Display results in console
     headers = ["Time", "Degrees", "Slope To (°/s)", "Slope From (°/s)", "Used"]
@@ -119,6 +127,11 @@ def main():
         print(f"\nMean of accepted values: {mean_value:.4f}°")
     else:
         print("No values accepted for mean calculation.")
+
+    if mean_slope_value is not None:
+        print(f"Mean of accepted slopes: {mean_slope_value:.4f}°/s")
+    else:
+        print("No slopes accepted for mean calculation.")
 
 if __name__ == "__main__":
     main()
