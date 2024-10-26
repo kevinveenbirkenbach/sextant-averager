@@ -23,15 +23,17 @@ class Measurement:
         self.slope_from = slope_from
 
     def check_slope_ok(self, mean_slope, slope_threshold, ignore_operator, ignore_threshold):
-        to_outlier = (self.slope_to is not None and abs(self.slope_to - mean_slope) > slope_threshold) or \
-                     (ignore_operator == '>' and self.slope_to is not None and abs(self.slope_to) > ignore_threshold) or \
-                     (ignore_operator == '<' and self.slope_to is not None and abs(self.slope_to) < ignore_threshold)
+        to_within_threshold = (self.slope_to is not None and abs(self.slope_to - mean_slope) <= slope_threshold) and \
+                            ((ignore_operator == '>' and abs(self.slope_to) <= ignore_threshold) or \
+                            (ignore_operator == '<' and abs(self.slope_to) >= ignore_threshold))
 
-        from_outlier = (self.slope_from is not None and abs(self.slope_from - mean_slope) > slope_threshold) or \
-                       (ignore_operator == '>' and self.slope_from is not None and abs(self.slope_from) > ignore_threshold) or \
-                       (ignore_operator == '<' and self.slope_from is not None and abs(self.slope_from) < ignore_threshold)
+        from_within_threshold = (self.slope_from is not None and abs(self.slope_from - mean_slope) <= slope_threshold) and \
+                                ((ignore_operator == '>' and abs(self.slope_from) <= ignore_threshold) or \
+                                (ignore_operator == '<' and abs(self.slope_from) >= ignore_threshold))
 
-        self.slope_ok = not (to_outlier or from_outlier)
+        # Slope OK if at least one of the slopes (To or From) is within threshold
+        self.slope_ok = to_within_threshold or from_within_threshold
+
 
     def check_tolerance_ok(self, mean_slope_ok, tolerance_threshold):
         if self.slope_ok:
