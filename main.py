@@ -86,7 +86,12 @@ def calculate_slope_filtered_mean(values, ignore_slope=None):
             (ignore_operator == '<' and slope_from is not None and abs(slope_from) < ignore_threshold)
         )
 
-        is_outlier = to_outlier or from_outlier
+        # Mark as outlier if both slopes exist and both are outliers,
+        # or if only one slope exists and it is an outlier
+        if slope_to is not None and slope_from is not None:
+            is_outlier = to_outlier and from_outlier
+        else:
+            is_outlier = to_outlier or from_outlier
 
         # Add accepted slopes for mean calculation
         if not to_outlier and slope_to is not None:
