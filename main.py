@@ -106,6 +106,12 @@ def calculate_mean_slope_ok(measurements, ignore_slope, tolerance):
 
     return mean_slope_ok, tolerance_threshold
 
+def format_degrees(decimal_degrees):
+    """Convert a decimal degree value to 'degrees°minutes.decimal' format."""
+    degrees = int(decimal_degrees)
+    minutes = (decimal_degrees - degrees) * 60
+    return f"{degrees}°{minutes:.3f}'"
+
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
     parser.add_argument('measurements', type=parse_measurement, nargs='+', help="List of measurements in HH:MM:SS@00°00.0' format")
@@ -149,7 +155,8 @@ def main():
     accepted_values = [m.degrees for m in measurements if m.slope_ok]
     mean_value = mean(accepted_values) if accepted_values else None
     if mean_value is not None:
-        print(f"\nMean of accepted values: {mean_value:.4f}°")
+        formatted_mean_value = format_degrees(mean_value)
+        print(f"\nMean of accepted values: {formatted_mean_value}")
     else:
         print("No values accepted for mean calculation.")
 
