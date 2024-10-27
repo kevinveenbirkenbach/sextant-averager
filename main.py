@@ -1,13 +1,11 @@
 import argparse
 import re
 from datetime import datetime
-from statistics import mean, stdev
+from statistics import mean, stdev, StatisticsError
 from tabulate import tabulate
 
-# DEFAULT_IGNORE_SLOPE sets a conservative threshold to filter out unrealistic altitude rate changes.
 DEFAULT_IGNORE_SLOPE = ">0.005"
 DEFAULT_TOLERANCE = 10  # Default tolerance as a percentage
-
 
 class Measurement:
     def __init__(self, time, degrees, slope_to=None, slope_from=None):
@@ -33,15 +31,13 @@ class Measurement:
                                 ((ignore_operator == '>' and abs(self.slope_from) <= ignore_threshold) or \
                                  (ignore_operator == '<' and abs(self.slope_from) >= ignore_threshold))
 
-        # Slope OK if at least one of the slopes (To or From) is within threshold
         self.slope_ok = to_within_threshold or from_within_threshold
 
     def check_tolerance_ok(self, mean_slope_ok, tolerance_threshold):
         if self.slope_ok:
             to_within_tolerance = self.slope_to is not None and abs(self.slope_to - mean_slope_ok) <= tolerance_threshold
             from_within_tolerance = self.slope_from is not None and abs(self.slope_from - mean_slope_ok) <= tolerance_threshold
-            self.tolerance_ok = to_within_tolerance and from_within_tolerance  # Use AND condition here
-
+            self.tolerance_ok = to_within_tolerance and from_within_tolerance
 
 def parse_measurement(value):
     try:
@@ -52,7 +48,6 @@ def parse_measurement(value):
         return Measurement(time, decimal_degrees)
     except Exception:
         raise argparse.ArgumentTypeError(f"Invalid format: '{value}'. Expected format is HH:MM:SS@00°00.0'")
-
 
 def parse_ignore_slope(value):
     if value.startswith(('>', '<')):
@@ -65,13 +60,11 @@ def parse_ignore_slope(value):
     else:
         raise argparse.ArgumentTypeError(f"Invalid operator in '{value}'. Expected format is '<value' or '>value'.")
 
-
 def link_measurements(measurements):
     """Link each measurement to its previous and next measurement."""
     for i in range(1, len(measurements)):
         measurements[i].previous = measurements[i - 1]
         measurements[i - 1].next = measurements[i]
-
 
 def calculate_slopes(measurements):
     for i in range(len(measurements) - 1):
@@ -81,26 +74,35 @@ def calculate_slopes(measurements):
         measurements[i].slope_to = slope_to
         measurements[i + 1].slope_from = slope_to
 
-
 def calculate_mean_slope_ok(measurements, ignore_slope, tolerance):
-    slopes = [m.slope_to for m in measurements if m.slope_to is not None] + \
-             [m.slope_from for m in measurements if m.slope_from is not None]
-    mean_slope = mean(slopes)
-    stddev_slope = stdev(slopes)
-    slope_threshold = 2 * stddev_slope
-
     ignore_operator, ignore_threshold = ignore_slope
+    slopes = []
 
-    # Mark slope OK status based on ignore_slope and calculated thresholds
+    for m in measurements:
+        if m.slope_to is not None:
+            slopes.append(m.slope_to)
+        if m.slope_from is not None:
+            slopes.append(m.slope_from)
+
+    try:
+        mean_slope = mean(slopes)
+        stddev_slope = stdev(slopes)
+        slope_threshold = 2 * stddev_slope
+    except StatisticsError:
+        mean_slope, slope_threshold = 0, 0  # Default when slopes are insufficient
+
     for m in measurements:
         m.check_slope_ok(mean_slope, slope_threshold, ignore_operator, ignore_threshold)
 
-    accepted_slopes = [s for s in slopes if s is not None and abs(s - mean_slope) <= slope_threshold]
-    mean_slope_ok = mean(accepted_slopes) if accepted_slopes else None
+    accepted_slopes = [m.slope_to for m in measurements if m.slope_ok and m.next and m.next.slope_ok]
+
+    try:
+        mean_slope_ok = mean(accepted_slopes)
+    except StatisticsError:
+        mean_slope_ok = None
     tolerance_threshold = mean_slope_ok * (tolerance / 100) if mean_slope_ok else None
 
     return mean_slope_ok, tolerance_threshold
-
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate the mean of angular measurements, excluding steep slope outliers.")
@@ -110,16 +112,14 @@ def main():
     args = parser.parse_args()
 
     measurements = args.measurements
-    link_measurements(measurements)  # Link each measurement to its previous and next one
+    link_measurements(measurements)
     calculate_slopes(measurements)
 
     mean_slope_ok, tolerance_threshold = calculate_mean_slope_ok(measurements, args.ignore_slope, args.tolerance)
 
-    # Apply tolerance check
     for m in measurements:
         m.check_tolerance_ok(mean_slope_ok, tolerance_threshold)
 
-    # Display results
     headers = ["Time", "Degrees", "Slope To (°/s)", "Slope From (°/s)", "Slope OK", "Tolerance OK"]
     table_data = [
         (
@@ -133,7 +133,6 @@ def main():
     ]
     print(tabulate(table_data, headers=headers))
 
-    # Summary
     accepted_values = [m.degrees for m in measurements if m.slope_ok]
     mean_value = mean(accepted_values) if accepted_values else None
     if mean_value is not None:
