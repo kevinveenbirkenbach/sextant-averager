@@ -1,6 +1,6 @@
 import argparse
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from statistics import mean, stdev, StatisticsError
 from tabulate import tabulate
 
@@ -135,6 +135,17 @@ def main():
     ]
     print(tabulate(table_data, headers=headers))
 
+    # Calculate and display average time duration and midpoint time
+    start_time = measurements[0].time
+    end_time = measurements[-1].time
+    total_duration = (end_time - start_time).total_seconds()
+    average_time = total_duration / (len(measurements) - 1) if len(measurements) > 1 else 0
+    midpoint_time = start_time + timedelta(seconds=total_duration / 2)
+    
+    print(f"\nAverage time between measurements: {average_time:.2f} seconds")
+    print(f"Midpoint time: {midpoint_time.strftime('%H:%M:%S')}")
+
+    # Summary
     accepted_values = [m.degrees for m in measurements if m.slope_ok]
     mean_value = mean(accepted_values) if accepted_values else None
     if mean_value is not None:
