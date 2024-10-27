@@ -31,13 +31,15 @@ class Measurement:
                                 ((ignore_operator == '>' and abs(self.slope_from) <= ignore_threshold) or \
                                  (ignore_operator == '<' and abs(self.slope_from) >= ignore_threshold))
 
+        # Slope OK if at least one of the slopes (To or From) is within threshold
         self.slope_ok = to_within_threshold or from_within_threshold
 
     def check_tolerance_ok(self, mean_slope_ok, tolerance_threshold):
         if self.slope_ok:
+            # Check if either slope_to or slope_from is within tolerance of mean_slope_ok
             to_within_tolerance = self.slope_to is not None and abs(self.slope_to - mean_slope_ok) <= tolerance_threshold
             from_within_tolerance = self.slope_from is not None and abs(self.slope_from - mean_slope_ok) <= tolerance_threshold
-            self.tolerance_ok = to_within_tolerance and from_within_tolerance
+            self.tolerance_ok = to_within_tolerance or from_within_tolerance
 
 def parse_measurement(value):
     try:
